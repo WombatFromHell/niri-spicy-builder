@@ -13,26 +13,38 @@ echo "--> Using hermetic cargo cache at: ${CARGO_HOME}"
 echo "--> Fetching dependencies..."
 cargo fetch --locked
 
+echo "--> Restoring Cargo.toml from upstream..."
+git checkout Cargo.toml
+
 echo "--> Building release binary..."
 cargo build --release --locked
+strip --strip-all "target/release/niri"
 
 echo "--> Injecting RPM packaging metadata into Cargo.toml..."
-# Remove any existing [package.metadata.generate-rpm] section if present
+# Safely strip any existing generate-rpm section
 sed -i '/\[package.metadata.generate-rpm\]/,$d' Cargo.toml
 
-# Append the full asset manifest required for wayland desktop integration
+# Write a clean, complete RPM metadata table
 cat <<'EOF' >>Cargo.toml
 
 [package.metadata.generate-rpm]
+name = "niri"
+version = "26.04"
+release = "1.fc44"
+summary = "Scrollable-tiling Wayland compositor (spicy build)"
+license = "GPL-3.0-or-later"
 assets = [
-  { source = "target/release/niri", dest = "/usr/bin/niri", mode = "755" },
-  { source = "resources/niri-session", dest = "/usr/bin/niri-session", mode = "755" },
-  { source = "resources/niri.desktop", dest = "/usr/share/wayland-sessions/niri.desktop", mode = "644" },
-  { source = "resources/niri-portals.conf", dest = "/usr/share/xdg-desktop-portal/niri-portals.conf", mode = "644" },
-  { source = "resources/niri.service", dest = "/usr/lib/systemd/user/niri.service", mode = "644" },
-  { source = "resources/niri-shutdown.target", dest = "/usr/lib/systemd/user/niri-shutdown.target", mode = "644" },
-  { source = "resources/default-config.kdl", dest = "/usr/share/doc/niri/default-config.kdl", mode = "644" }
+  { source = "target/release/niri", dest = "/usr/bin/", mode = "755" },
+  { source = "resources/niri-session", dest = "/usr/bin/", mode = "755" },
+  { source = "resources/niri.desktop", dest = "/usr/share/wayland-sessions/", mode = "644" },
+  { source = "resources/niri-portals.conf", dest = "/usr/share/xdg-desktop-portal/", mode = "644" },
+  { source = "resources/niri.service", dest = "/usr/lib/systemd/user/", mode = "644" },
+  { source = "resources/niri-shutdown.target", dest = "/usr/lib/systemd/user/", mode = "644" },
+  { source = "resources/default-config.kdl", dest = "/usr/share/doc/niri/", mode = "644" }
 ]
+[package.metadata.generate-rpm.recommends]
+alacritty = "*"
+fuzzel = "*"
 EOF
 
 echo "--> Generating RPM package..."
