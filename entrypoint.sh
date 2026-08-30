@@ -13,6 +13,10 @@ echo "--> Using hermetic cargo cache at: ${CARGO_HOME}"
 echo "--> Fetching dependencies..."
 cargo fetch --locked
 
+# ponytail: derive short hash from actual checkout (covers branch→hash), fallback to NIRI_REF when .git absent
+SHORT="$(git rev-parse --short=7 HEAD 2>/dev/null || printf '%s' "${NIRI_REF:-unknown}" | grep -Eo '[0-9a-f]{7,40}' | head -c7)"
+SHORT="${SHORT:-unknown}"
+
 echo "--> Restoring Cargo.toml from upstream..."
 git checkout Cargo.toml
 
@@ -25,11 +29,11 @@ echo "--> Injecting RPM packaging metadata into Cargo.toml..."
 sed -i '/\[package.metadata.generate-rpm\]/,$d' Cargo.toml
 
 # Write a clean, complete RPM metadata table
-cat <<'EOF' >>Cargo.toml
+cat <<EOF >>Cargo.toml
 
 [package.metadata.generate-rpm]
 name = "niri"
-version = "26.04"
+version = "26.04.git+${SHORT}"
 release = "1.fc44"
 summary = "Scrollable-tiling Wayland compositor (spicy build)"
 license = "GPL-3.0-or-later"
@@ -48,6 +52,7 @@ fuzzel = "*"
 EOF
 
 echo "--> Generating RPM package..."
+rm -rf target/generate-rpm
 cargo-generate-rpm
 
 echo "--> Copying completed RPM to output directory..."

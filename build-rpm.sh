@@ -49,6 +49,7 @@ echo "==> Compiling and packaging RPM via Podman..."
 # - ${RPM_OUTPUT_DIR}: Artifact distribution directory mounted to /output
 podman run --rm \
   --userns=keep-id \
+  -e NIRI_REF="${NIRI_REF}" \
   -v "${SRC_DIR}:/workspace:z" \
   -v "${CARGO_CACHE_DIR}:/workspace/.cargo:z" \
   -v "${TARGET_CACHE_DIR}:/workspace/niri/target:z" \
