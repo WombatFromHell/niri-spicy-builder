@@ -23,10 +23,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Tag off the niri RPM (primary artifact); upload every RPM in dist/
-          niri_rpm="dist/niri-*.rpm"
-          [[ -e "$niri_rpm" ]] || { echo "niri RPM missing"; exit 1; }
-          rpm="${niri_rpm}"
-          [[ "$(basename "$rpm")" =~ ^[^-]+-(.+)\.([^.]+)\.rpm$ ]] || exit 1
+          niri_rpm="$(compgen -G 'dist/niri-*.rpm')"
+          [[ -n "$niri_rpm" ]] || { echo "niri RPM missing"; exit 1; }
+          [[ "$(basename "$niri_rpm")" =~ ^[^-]+-(.+)\.([^.]+)\.rpm$ ]] || exit 1
           tag="v${BASH_REMATCH[1]}"
           git tag "$tag"
           git push origin "$tag"
