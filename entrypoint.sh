@@ -49,6 +49,7 @@ assets = [
 [package.metadata.generate-rpm.recommends]
 alacritty = "*"
 fuzzel = "*"
+xwayland-satellite = "*"
 EOF
 
 echo "--> Generating RPM package..."
