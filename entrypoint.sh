@@ -13,8 +13,8 @@ echo "--> Using hermetic cargo cache at: ${CARGO_HOME}"
 echo "--> Fetching dependencies..."
 cargo fetch --locked
 
-# ponytail: derive short hash from actual checkout (covers branch→hash), fallback to NIRI_REF when .git absent
-SHORT="$(git rev-parse --short=7 HEAD 2>/dev/null || printf '%s' "${NIRI_REF:-unknown}" | grep -Eo '[0-9a-f]{7,40}' | head -c7)"
+# ponytail: host derives GIT_SHORT from the synced checkout; fallback to the checkout here if unset
+SHORT="${GIT_SHORT:-$(git rev-parse --short=7 HEAD 2>/dev/null || true)}"
 SHORT="${SHORT:-unknown}"
 
 echo "--> Restoring Cargo.toml from upstream..."

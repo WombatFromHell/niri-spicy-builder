@@ -15,6 +15,10 @@ ensure_image
 echo "==> Syncing xwayland-satellite source tree..."
 sync_repo "https://github.com/Supreeeme/xwayland-satellite" "${SATELLITE_REF}" "${SRC_DIR}/xwayland-satellite"
 
+# ponytail: hash comes from the synced checkout, not the ref string
+GIT_SHORT="$(short_hash "${SRC_DIR}/xwayland-satellite")"
+echo "==> xwayland-satellite @ ${GIT_SHORT}"
+
 echo "==> Compiling and packaging RPM via Podman..."
 # Volume Mount Layout:
 # - ${SRC_DIR}/xwayland-satellite: Source tree mounted to /workspace
@@ -24,6 +28,7 @@ echo "==> Compiling and packaging RPM via Podman..."
 podman run --rm \
   --userns=keep-id \
   -e SATELLITE_REF="${SATELLITE_REF}" \
+  -e GIT_SHORT="${GIT_SHORT}" \
   -v "${SRC_DIR}/xwayland-satellite:/workspace:z" \
   -v "${HOST_CACHE_DIR}/satellite-cargo:/workspace/.cargo:z" \
   -v "${HOST_CACHE_DIR}/satellite-target:/workspace/target:z" \

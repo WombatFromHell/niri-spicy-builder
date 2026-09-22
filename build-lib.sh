@@ -37,3 +37,7 @@ sync_repo() {
   # ponytail: -fd (not -fdx) so gitignored target/ build cache survives
   git -C "${dest_dir}" clean -fd
 }
+
+short_hash() {
+  git -C "$1" rev-parse --short=7 HEAD
+}

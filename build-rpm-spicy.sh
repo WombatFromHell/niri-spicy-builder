@@ -17,6 +17,10 @@ echo "==> Syncing niri and smithay source trees..."
 sync_repo "https://github.com/losnoco/niri" "${NIRI_REF}" "${SRC_DIR}/niri"
 sync_repo "https://github.com/losnoco/smithay" "${SMITHAY_REF}" "${SRC_DIR}/smithay"
 
+# ponytail: hash comes from the synced checkout, not the ref string — top-most pin (niri) names the RPM; smithay is log-only
+GIT_SHORT="$(short_hash "${SRC_DIR}/niri")"
+echo "==> niri @ ${GIT_SHORT} (smithay @ $(short_hash "${SRC_DIR}/smithay"))"
+
 echo "==> Compiling and packaging RPM via Podman..."
 # Volume Mount Layout:
 # - ${SRC_DIR}: Source tree mounted to /workspace
@@ -26,6 +30,7 @@ echo "==> Compiling and packaging RPM via Podman..."
 podman run --rm \
   --userns=keep-id \
   -e NIRI_REF="${NIRI_REF}" \
+  -e GIT_SHORT="${GIT_SHORT}" \
   -v "${SRC_DIR}:/workspace:z" \
   -v "${CARGO_CACHE_DIR}:/workspace/.cargo:z" \
   -v "${TARGET_CACHE_DIR}:/workspace/niri/target:z" \
