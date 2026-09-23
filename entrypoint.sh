@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=container-lib.sh
 source /usr/local/bin/container-lib.sh
 
 cd /workspace/niri
@@ -22,8 +23,8 @@ cat <<EOF >>Cargo.toml
 
 [package.metadata.generate-rpm]
 name = "niri"
-version = "26.04.git+${SHORT}"
-release = "1.fc44"
+version = "${NIRI_VERSION_BASE}.git+${SHORT}"
+release = "${FEDORA_RELEASE}"
 summary = "Scrollable-tiling Wayland compositor (spicy build)"
 license = "GPL-3.0-or-later"
 assets = [

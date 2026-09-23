@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=container-lib.sh
 source /usr/local/bin/container-lib.sh
 
 cd /workspace
 
 setup
 
-# ponytail: base version read from Cargo.toml [package] (first `version =` after [package])
-BASEVER="$(awk '/^\[package\]/{f=1;next} f&&/^version = "/{gsub(/version = "|"/,"");print;exit}' Cargo.toml)"
+BASEVER="$(cargo_basever .)"
 BASEVER="${BASEVER:-unknown}"
 
 echo "--> Building release binary (features: systemd)..."
@@ -29,7 +29,7 @@ cat <<EOF >>Cargo.toml
 [package.metadata.generate-rpm]
 name = "xwayland-satellite"
 version = "${BASEVER}.git+${SHORT}"
-release = "1.fc44"
+release = "${FEDORA_RELEASE}"
 summary = "Rootless Xwayland for Wayland compositors (spicy build)"
 license = "MPL-2.0"
 assets = [

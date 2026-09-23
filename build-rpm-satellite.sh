@@ -2,11 +2,21 @@
 set -euo pipefail
 
 source "$(cd "$(dirname "$0")" && pwd)/build-lib.sh"
+# ponytail: container-lib doubles as the host-side name predictor (same helpers the entrypoints package with)
+source "${PROJECT_ROOT}/container-lib.sh"
 
 parse_args "$@"
 
 # ponytail: default to upstream default branch; override to pin a commit/branch
 SATELLITE_REF="${SATELLITE_REF:-add2795134593faafce60e404a0a75df68e9ee0c}"
+
+# ponytail: --name-only stops before image build/compile — just enough to name the RPM (last stdout line)
+if [ "$NAME_ONLY" = "1" ]; then
+  ensure_dirs
+  sync_repo "https://github.com/Supreeeme/xwayland-satellite" "${SATELLITE_REF}" "${SRC_DIR}/xwayland-satellite"
+  satellite_rpm_name "$(cargo_basever "${SRC_DIR}/xwayland-satellite")" "$(short_hash "${SRC_DIR}/xwayland-satellite")"
+  exit 0
+fi
 
 # ponytail: don't wipe dist/ here — spicy runs first and wipes; satellite appends
 ensure_dirs

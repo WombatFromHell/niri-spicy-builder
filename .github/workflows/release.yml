@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: Re-upload RPMs whose name already exists on a release
+        description: Rebuild and re-upload even when every RPM name already exists on this tag
         type: boolean
         default: false
 
@@ -16,41 +16,70 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # ponytail: RPM names are version + 7-char git hash + dist/arch — knowable without
+      # compiling, and the hash means "name exists" == "artifact exists". niri's predicted
+      # name also determines the release tag, so check only that tag's assets (no history walk).
+      - name: Predict RPM names and decide what to build
+        id: predict
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          bash build-rpm-spicy.sh --name-only | tail -n1 > predicted-names.txt
+          bash build-rpm-satellite.sh --name-only | tail -n1 >> predicted-names.txt
+
+          niri_rpm="$(sed -n '1p' predicted-names.txt)"
+          satellite_rpm="$(sed -n '2p' predicted-names.txt)"
+
+          [[ "$niri_rpm" =~ ^[^-]+-(.+)\.([^.]+)\.rpm$ ]] || exit 1
+          tag="v${BASH_REMATCH[1]}"
+
+          existing=""
+          if gh release view "$tag" >/dev/null 2>&1; then
+            existing="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" --jq '.assets[].name')"
+          fi
+
+          build_niri=true
+          build_satellite=true
+          if [[ "$FORCE" != true ]]; then
+            grep -Fxq "$niri_rpm" <<<"$existing" && build_niri=false
+            grep -Fxq "$satellite_rpm" <<<"$existing" && build_satellite=false
+          fi
+
+          if [[ "$build_niri" == false && "$build_satellite" == false ]]; then
+            echo "::error::both RPMs already on $tag; rerun with 'force' to rebuild anyway"
+            exit 1
+          fi
+
+          {
+            echo "tag=$tag"
+            echo "build_niri=$build_niri"
+            echo "build_satellite=$build_satellite"
+          } >>"$GITHUB_OUTPUT"
+
       - name: Build niri (spicy) RPM
+        if: steps.predict.outputs.build_niri == 'true'
         run: bash build-rpm-spicy.sh
 
       - name: Build xwayland-satellite RPM
+        if: steps.predict.outputs.build_satellite == 'true'
         run: bash build-rpm-satellite.sh
 
       # ponytail: ubuntu-latest ships podman; only swap if :z/:Z mount flags misbehave on hosted runners
       - name: Tag and create release
         env:
           GH_TOKEN: ${{ github.token }}
-          FORCE: ${{ inputs.force }}
+          TAG: ${{ steps.predict.outputs.tag }}
         run: |
-          # Tag off the niri RPM (primary artifact); upload RPMs in dist/ that aren't on a release yet
-          niri_rpm="$(compgen -G 'dist/niri-*.rpm')"
-          [[ -n "$niri_rpm" ]] || { echo "niri RPM missing"; exit 1; }
-          [[ "$(basename "$niri_rpm")" =~ ^[^-]+-(.+)\.([^.]+)\.rpm$ ]] || exit 1
-          tag="v${BASH_REMATCH[1]}"
+          source container-lib.sh
+          verify_rpm_names predicted-names.txt
 
-          gh api --paginate "repos/$GITHUB_REPOSITORY/releases" --jq '.[].assets[].name' > asset-names.txt
-          upload=()
-          for f in dist/*.rpm; do
-            [[ -e "$f" ]] || { echo "no RPMs in dist/"; exit 1; }
-            if [[ "$FORCE" != "true" ]] && grep -Fxq "$(basename "$f")" asset-names.txt; then
-              echo "::notice::skipping unchanged $(basename "$f")"
-            else
-              upload+=("$f")
-            fi
-          done
-          ((${#upload[@]})) || { echo "::error::every RPM already released; rerun with 'force' to override"; exit 1; }
-
-          if gh release view "$tag" >/dev/null 2>&1; then
-            # niri unchanged: tag already exists, just add the new assets to that release
-            gh release upload "$tag" "${upload[@]}" --clobber
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # tag already exists: just add/overwrite this run's assets
+            gh release upload "$TAG" dist/*.rpm --clobber
           else
-            git tag "$tag"
-            git push origin "$tag"
-            gh release create "$tag" "${upload[@]}" --generate-notes
+            git tag "$TAG"
+            git push origin "$TAG"
+            gh release create "$TAG" dist/*.rpm --generate-notes
           fi

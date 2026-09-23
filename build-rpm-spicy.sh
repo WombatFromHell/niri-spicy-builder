@@ -2,12 +2,22 @@
 set -euo pipefail
 
 source "$(cd "$(dirname "$0")" && pwd)/build-lib.sh"
+# ponytail: container-lib doubles as the host-side name predictor (same helpers the entrypoints package with)
+source "${PROJECT_ROOT}/container-lib.sh"
 
 parse_args "$@"
 
 # ponytail: shallow fetch covers branch tip + pinned commit if on tip; falls back to full fetch for deep history
 NIRI_REF="${NIRI_REF:-641335ff77d31f0d410d589f8a35654fc5fe31a0}"
 SMITHAY_REF="${SMITHAY_REF:-ffaab7cb397f44f3c143dfe4807269abf9c769eb}"
+
+# ponytail: --name-only stops before image build/compile — just enough to name the RPM (last stdout line)
+if [ "$NAME_ONLY" = "1" ]; then
+  ensure_dirs
+  sync_repo "https://github.com/losnoco/niri" "${NIRI_REF}" "${SRC_DIR}/niri"
+  niri_rpm_name "$(short_hash "${SRC_DIR}/niri")"
+  exit 0
+fi
 
 # Ensure cache and distribution output directories exist
 rm -rf "$RPM_OUTPUT_DIR"

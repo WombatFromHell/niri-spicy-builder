@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ponytail: source-only lib, shebang exists for shellcheck
+# shellcheck disable=SC2034 # NAME_ONLY is set here, consumed by the build scripts that source this lib
 # build-lib.sh — shared scaffolding for build-rpm-*.sh (source, don't execute)
 
 IMAGE_NAME="niri-spicy-builder:f44"
@@ -14,6 +15,8 @@ CARGO_CACHE_DIR="${HOST_CACHE_DIR}/cargo"
 TARGET_CACHE_DIR="${HOST_CACHE_DIR}/target"
 
 # ponytail: --clean acts at parse time (before the build workflow); no flag state to plumb around
+# NAME_ONLY flips the build script to "predict the RPM name and exit" mode (release workflow pre-check)
+NAME_ONLY=0
 parse_args() {
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -22,8 +25,11 @@ parse_args() {
         rm -rf "${HOST_CACHE_DIR}"
         rm -f "${RPM_OUTPUT_DIR}"/*.rpm
         ;;
+      --name-only)
+        NAME_ONLY=1
+        ;;
       *)
-        echo "usage: $(basename "$0") [--clean]" >&2
+        echo "usage: $(basename "$0") [--clean] [--name-only]" >&2
         exit 2
         ;;
     esac
