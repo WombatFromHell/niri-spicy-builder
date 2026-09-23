@@ -1,0 +1,147 @@
+diff --git a/src/backend/renderer/multigpu/mod.rs b/src/backend/renderer/multigpu/mod.rs
+index 18667f9..d83ac0e 100644
+--- a/src/backend/renderer/multigpu/mod.rs
++++ b/src/backend/renderer/multigpu/mod.rs
+@@ -1027,12 +1027,13 @@ where
+     }
+ }
+
+-impl<R: GraphicsApi, T: GraphicsApi, Target> Offscreen<Target> for MultiRenderer<'_, '_, R, T>
++impl<R: GraphicsApi, T: GraphicsApi, Target: Texture> Offscreen<Target> for MultiRenderer<'_, '_, R, T>
+ where
+     <T::Device as ApiDevice>::Renderer: Offscreen<Target>,
+-    // We need these because the Bind-impl does and Offscreen requires Bind
++    // Offscreen requires Bind, which routes to the render device
++    <R::Device as ApiDevice>::Renderer: Bind<Target>,
+     <T::Device as ApiDevice>::Renderer: Bind<Target>,
+-    // We need these because the Renderer-impl does and Offscreen requires Bind, which requires Unbind, which requires Renderer
++    // We need these because the Renderer-impl does and Offscreen requires Bind, which requires Renderer
+     R: 'static,
+     R::Error: 'static,
+     T::Error: 'static,
+@@ -1049,29 +1050,29 @@ where
+         format: Fourcc,
+         size: Size<i32, BufferCoords>,
+     ) -> Result<Target, <Self as RendererSuper>::Error> {
+-        if let Some(target) = self.target.as_mut() {
+-            target
+-                .device
+-                .renderer_mut()
+-                .create_buffer(format, size)
+-                .map_err(Error::Target)
+-        } else {
+-            // SAFETY: We know this is safe, because `self.target` can only be `None` if R == T.
+-            let renderer = unsafe {
+-                std::mem::transmute::<
+-                    &mut <R::Device as ApiDevice>::Renderer,
+-                    &mut <T::Device as ApiDevice>::Renderer,
+-                >(self.render.renderer_mut())
+-            };
+-            renderer.create_buffer(format, size).map_err(Error::Target)
+-        }
++        // The offscreen texture is drawn on the render frame (see
++        // `MultiFrame::as_mut`), so it must be created on the render device to
++        // live in the same share group.
++        // SAFETY: R == T, because both renderers must be able to bind the same
++        // texture type `Target`, and texture types are API-specific.
++        let renderer = unsafe {
++            std::mem::transmute::<
++                &mut <R::Device as ApiDevice>::Renderer,
++                &mut <T::Device as ApiDevice>::Renderer,
++            >(self.render.renderer_mut())
++        };
++        renderer.create_buffer(format, size).map_err(Error::Target)
+     }
+ }
+
+-impl<R: GraphicsApi, T: GraphicsApi, Target> Bind<Target> for MultiRenderer<'_, '_, R, T>
++/// [`Bind`] for texture targets (offscreen buffers): always bound on the
++/// render device, so the texture lives in the same share group as the frame
++/// that draws it (see [`MultiFrame::as_mut`]).
++impl<R: GraphicsApi, T: GraphicsApi, Target: Texture> Bind<Target> for MultiRenderer<'_, '_, R, T>
+ where
++    <R::Device as ApiDevice>::Renderer: Bind<Target>,
+     <T::Device as ApiDevice>::Renderer: Bind<Target>,
+-    // We need this because the Renderer-impl does and Bind requires Unbind, which requires Renderer
++    // We need this because the Renderer-impl does and Bind requires Renderer
+     R: 'static,
+     R::Error: 'static,
+     T::Error: 'static,
+@@ -1086,6 +1087,47 @@ where
+     fn bind<'a>(
+         &mut self,
+         bind: &'a mut Target,
++    ) -> Result<<Self as RendererSuper>::Framebuffer<'a>, <Self as RendererSuper>::Error> {
++        // SAFETY: R == T, because both renderers must be able to bind the same
++        // texture type `Target`, and texture types are API-specific.
++        let renderer = unsafe {
++            std::mem::transmute::<
++                &mut <R::Device as ApiDevice>::Renderer,
++                &mut <T::Device as ApiDevice>::Renderer,
++            >(self.render.renderer_mut())
++        };
++        renderer
++            .bind(bind)
++            .map(MultiFramebufferInternal::Render)
++            .map(MultiFramebuffer)
++            .map_err(Error::Target)
++    }
++
++    fn supported_formats(&self) -> Option<FormatSet> {
++        Bind::<Target>::supported_formats(self.render.renderer())
++    }
++}
++
++/// [`Bind`] for Dmabuf targets (the scanout buffer), which lives on the target
++/// device.
++impl<R: GraphicsApi, T: GraphicsApi> Bind<Dmabuf> for MultiRenderer<'_, '_, R, T>
++where
++    <T::Device as ApiDevice>::Renderer: Bind<Dmabuf>,
++    // We need this because the Renderer-impl does and Bind requires Renderer
++    R: 'static,
++    R::Error: 'static,
++    T::Error: 'static,
++    <R::Device as ApiDevice>::Renderer: Bind<Dmabuf> + ExportMem + ImportDma + ImportMem,
++    <T::Device as ApiDevice>::Renderer: ImportDma + ImportMem,
++    <<R::Device as ApiDevice>::Renderer as RendererSuper>::TextureId: Clone + Send,
++    <<R::Device as ApiDevice>::Renderer as RendererSuper>::Error: 'static,
++    <<T::Device as ApiDevice>::Renderer as RendererSuper>::Error: 'static,
++{
++    #[instrument(level = "trace", parent = &self.span, skip(self, bind))]
++    #[profiling::function]
++    fn bind<'a>(
++        &mut self,
++        bind: &'a mut Dmabuf,
+     ) -> Result<<Self as RendererSuper>::Framebuffer<'a>, <Self as RendererSuper>::Error> {
+         if let Some(target) = self.target.as_mut() {
+             target
+@@ -1113,7 +1155,7 @@ where
+
+     fn supported_formats(&self) -> Option<FormatSet> {
+         if let Some(target) = self.target.as_ref() {
+-            Bind::<Target>::supported_formats(target.device.renderer())
++            Bind::<Dmabuf>::supported_formats(target.device.renderer())
+         } else {
+             // SAFETY: We know this is safe, because `self.target` can only be `None` if R == T.
+             let renderer = unsafe {
+@@ -1121,7 +1163,7 @@ where
+                     self.render.renderer(),
+                 )
+             };
+-            Bind::<Target>::supported_formats(renderer)
++            Bind::<Dmabuf>::supported_formats(renderer)
+         }
+     }
+ }
+@@ -1279,7 +1321,10 @@ where
+         let mut new_framebuffer = None;
+         let frame = match &mut framebuffer.0 {
+             MultiFramebufferInternal::Render(framebuffer) => {
+-                // SAFETY: We know this is fine, because target can only be `None` (and thus this framebuffer be of variant `Render`), if R == T.
++                // SAFETY: The `Render` variant is only produced when R == T: either
++                // `self.target` is `None` (single device) or via the texture `Bind`
++                // impl, where both renderers binding the same texture type implies
++                // R == T (texture types are API-specific).
+                 let framebuffer = unsafe {
+                     std::mem::transmute::<
+                         &mut <<T::Device as ApiDevice>::Renderer as RendererSuper>::Framebuffer<'buffer>,

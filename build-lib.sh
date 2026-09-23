@@ -41,3 +41,15 @@ sync_repo() {
 short_hash() {
   git -C "$1" rev-parse --short=7 HEAD
 }
+
+# ponytail: sync_repo resets the tree every build, so patches are always freshly
+# applied to the pinned ref — a patch that no longer applies fails the build
+apply_patches() {
+  local tree="$1"
+  local dir="${PROJECT_ROOT}/patches/${tree}"
+  [ -d "${dir}" ] || return 0
+  while IFS= read -r -d '' patch; do
+    echo "==> Applying ${tree} patch: ${patch##*/}"
+    git -C "${SRC_DIR}/${tree}" apply "${patch}"
+  done < <(find "${dir}" -type f -name '*.patch' -print0 | sort -z)
+}

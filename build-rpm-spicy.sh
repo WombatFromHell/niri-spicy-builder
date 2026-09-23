@@ -4,8 +4,8 @@ set -euo pipefail
 source "$(cd "$(dirname "$0")" && pwd)/build-lib.sh"
 
 # ponytail: shallow fetch covers branch tip + pinned commit if on tip; falls back to full fetch for deep history
-NIRI_REF="${NIRI_REF:-15c93f62b4a2963b0b3fe8f1732c3ea73f9396f5}"
-SMITHAY_REF="${SMITHAY_REF:-ce13557df3f29525f195816c112bbfebd4e5a822}"
+NIRI_REF="${NIRI_REF:-641335ff77d31f0d410d589f8a35654fc5fe31a0}"
+SMITHAY_REF="${SMITHAY_REF:-ffaab7cb397f44f3c143dfe4807269abf9c769eb}"
 
 # Ensure cache and distribution output directories exist
 rm -rf "$RPM_OUTPUT_DIR"
@@ -16,6 +16,10 @@ ensure_image
 echo "==> Syncing niri and smithay source trees..."
 sync_repo "https://github.com/losnoco/niri" "${NIRI_REF}" "${SRC_DIR}/niri"
 sync_repo "https://github.com/losnoco/smithay" "${SMITHAY_REF}" "${SRC_DIR}/smithay"
+
+# ponytail: local patches on top of the pinned refs (sorted *.patch per tree)
+apply_patches niri
+apply_patches smithay
 
 # ponytail: hash comes from the synced checkout, not the ref string — top-most pin (niri) names the RPM; smithay is log-only
 GIT_SHORT="$(short_hash "${SRC_DIR}/niri")"
