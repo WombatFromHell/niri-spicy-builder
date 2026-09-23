@@ -1,6 +1,11 @@
 name: Release
 on:
   workflow_dispatch:
+    inputs:
+      force:
+        description: Re-upload RPMs whose name already exists on a release
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -21,12 +26,31 @@ jobs:
       - name: Tag and create release
         env:
           GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ inputs.force }}
         run: |
-          # Tag off the niri RPM (primary artifact); upload every RPM in dist/
+          # Tag off the niri RPM (primary artifact); upload RPMs in dist/ that aren't on a release yet
           niri_rpm="$(compgen -G 'dist/niri-*.rpm')"
           [[ -n "$niri_rpm" ]] || { echo "niri RPM missing"; exit 1; }
           [[ "$(basename "$niri_rpm")" =~ ^[^-]+-(.+)\.([^.]+)\.rpm$ ]] || exit 1
           tag="v${BASH_REMATCH[1]}"
-          git tag "$tag"
-          git push origin "$tag"
-          gh release create "$tag" dist/*.rpm --generate-notes
+
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases" --jq '.[].assets[].name' > asset-names.txt
+          upload=()
+          for f in dist/*.rpm; do
+            [[ -e "$f" ]] || { echo "no RPMs in dist/"; exit 1; }
+            if [[ "$FORCE" != "true" ]] && grep -Fxq "$(basename "$f")" asset-names.txt; then
+              echo "::notice::skipping unchanged $(basename "$f")"
+            else
+              upload+=("$f")
+            fi
+          done
+          ((${#upload[@]})) || { echo "::error::every RPM already released; rerun with 'force' to override"; exit 1; }
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            # niri unchanged: tag already exists, just add the new assets to that release
+            gh release upload "$tag" "${upload[@]}" --clobber
+          else
+            git tag "$tag"
+            git push origin "$tag"
+            gh release create "$tag" "${upload[@]}" --generate-notes
+          fi
