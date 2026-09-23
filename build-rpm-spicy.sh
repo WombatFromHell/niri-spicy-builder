@@ -3,6 +3,8 @@ set -euo pipefail
 
 source "$(cd "$(dirname "$0")" && pwd)/build-lib.sh"
 
+parse_args "$@"
+
 # ponytail: shallow fetch covers branch tip + pinned commit if on tip; falls back to full fetch for deep history
 NIRI_REF="${NIRI_REF:-641335ff77d31f0d410d589f8a35654fc5fe31a0}"
 SMITHAY_REF="${SMITHAY_REF:-ffaab7cb397f44f3c143dfe4807269abf9c769eb}"
@@ -26,14 +28,9 @@ GIT_SHORT="$(short_hash "${SRC_DIR}/niri")"
 echo "==> niri @ ${GIT_SHORT} (smithay @ $(short_hash "${SRC_DIR}/smithay"))"
 
 echo "==> Compiling and packaging RPM via Podman..."
-# Volume Mount Layout:
-# - ${SRC_DIR}: Source tree mounted to /workspace
-# - ${CARGO_CACHE_DIR}: Hermetic Cargo dependencies mounted to /workspace/.cargo
-# - ${TARGET_CACHE_DIR}: Incremental compilation cache mounted to /workspace/niri/target
-# - ${RPM_OUTPUT_DIR}: Artifact distribution directory mounted to /output
-podman run --rm \
+# ponytail: -it so Ctrl+C forwards SIGINT into the container (no host-side `podman rm -f`)
+podman run -it --rm \
   --userns=keep-id \
-  -e NIRI_REF="${NIRI_REF}" \
   -e GIT_SHORT="${GIT_SHORT}" \
   -v "${SRC_DIR}:/workspace:z" \
   -v "${CARGO_CACHE_DIR}:/workspace/.cargo:z" \

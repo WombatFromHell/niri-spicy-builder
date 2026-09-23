@@ -1,21 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source /usr/local/bin/container-lib.sh
+
 cd /workspace
 
-# Point CARGO_HOME to the mounted volume cache directory
-export CARGO_HOME="/workspace/.cargo"
-
-# Apply remap flags matching the PKGBUILD strategy
-export CARGO_ENCODED_RUSTFLAGS="--remap-path-prefix=/workspace=/"
-
-echo "--> Using hermetic cargo cache at: ${CARGO_HOME}"
-echo "--> Fetching dependencies..."
-cargo fetch --locked
-
-# ponytail: host derives GIT_SHORT from the synced checkout; fallback to the checkout here if unset
-SHORT="${GIT_SHORT:-$(git rev-parse --short=7 HEAD 2>/dev/null || true)}"
-SHORT="${SHORT:-unknown}"
+setup
 
 # ponytail: base version read from Cargo.toml [package] (first `version =` after [package])
 BASEVER="$(awk '/^\[package\]/{f=1;next} f&&/^version = "/{gsub(/version = "|"/,"");print;exit}' Cargo.toml)"
@@ -31,8 +21,7 @@ cp -v xwayland-satellite.man target/release/xwayland-satellite.1
 sed -e 's|/usr/local/bin|/usr/bin|g' resources/xwayland-satellite.service >target/release/xwayland-satellite.service
 
 echo "--> Injecting RPM packaging metadata into Cargo.toml..."
-# Safely strip any existing generate-rpm section
-sed -i '/\[package.metadata.generate-rpm\]/,$d' Cargo.toml
+strip_rpm_metadata
 
 # Write a clean, complete RPM metadata table
 cat <<EOF >>Cargo.toml
@@ -50,9 +39,4 @@ assets = [
 ]
 EOF
 
-echo "--> Generating RPM package..."
-rm -rf target/generate-rpm
-cargo-generate-rpm
-
-echo "--> Copying completed RPM to output directory..."
-cp -v target/generate-rpm/*.rpm /output/
+package_rpm

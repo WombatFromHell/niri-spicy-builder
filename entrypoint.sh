@@ -1,21 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source /usr/local/bin/container-lib.sh
+
 cd /workspace/niri
 
-# Point CARGO_HOME to the mounted volume cache directory
-export CARGO_HOME="/workspace/.cargo"
-
-# Apply remap flags matching the PKGBUILD strategy
-export CARGO_ENCODED_RUSTFLAGS="--remap-path-prefix=/workspace=/"
-
-echo "--> Using hermetic cargo cache at: ${CARGO_HOME}"
-echo "--> Fetching dependencies..."
-cargo fetch --locked
-
-# ponytail: host derives GIT_SHORT from the synced checkout; fallback to the checkout here if unset
-SHORT="${GIT_SHORT:-$(git rev-parse --short=7 HEAD 2>/dev/null || true)}"
-SHORT="${SHORT:-unknown}"
+setup
 
 echo "--> Restoring Cargo.toml from upstream..."
 git checkout Cargo.toml
@@ -25,8 +15,7 @@ cargo build --release --locked
 strip --strip-all "target/release/niri"
 
 echo "--> Injecting RPM packaging metadata into Cargo.toml..."
-# Safely strip any existing generate-rpm section
-sed -i '/\[package.metadata.generate-rpm\]/,$d' Cargo.toml
+strip_rpm_metadata
 
 # Write a clean, complete RPM metadata table
 cat <<EOF >>Cargo.toml
@@ -52,9 +41,4 @@ fuzzel = "*"
 xwayland-satellite = "*"
 EOF
 
-echo "--> Generating RPM package..."
-rm -rf target/generate-rpm
-cargo-generate-rpm
-
-echo "--> Copying completed RPM to output directory..."
-cp -v target/generate-rpm/*.rpm /output/
+package_rpm

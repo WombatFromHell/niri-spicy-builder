@@ -13,6 +13,24 @@ SRC_DIR="${HOST_CACHE_DIR}/src"
 CARGO_CACHE_DIR="${HOST_CACHE_DIR}/cargo"
 TARGET_CACHE_DIR="${HOST_CACHE_DIR}/target"
 
+# ponytail: --clean acts at parse time (before the build workflow); no flag state to plumb around
+parse_args() {
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --clean)
+        echo "==> Cleaning ${HOST_CACHE_DIR} and ${RPM_OUTPUT_DIR}/*.rpm..."
+        rm -rf "${HOST_CACHE_DIR}"
+        rm -f "${RPM_OUTPUT_DIR}"/*.rpm
+        ;;
+      *)
+        echo "usage: $(basename "$0") [--clean]" >&2
+        exit 2
+        ;;
+    esac
+    shift
+  done
+}
+
 ensure_dirs() {
   mkdir -p "${SRC_DIR}" "${CARGO_CACHE_DIR}" "${TARGET_CACHE_DIR}" "${RPM_OUTPUT_DIR}"
 }

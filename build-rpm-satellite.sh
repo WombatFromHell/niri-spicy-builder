@@ -3,6 +3,8 @@ set -euo pipefail
 
 source "$(cd "$(dirname "$0")" && pwd)/build-lib.sh"
 
+parse_args "$@"
+
 # ponytail: default to upstream default branch; override to pin a commit/branch
 SATELLITE_REF="${SATELLITE_REF:-add2795134593faafce60e404a0a75df68e9ee0c}"
 
@@ -20,14 +22,9 @@ GIT_SHORT="$(short_hash "${SRC_DIR}/xwayland-satellite")"
 echo "==> xwayland-satellite @ ${GIT_SHORT}"
 
 echo "==> Compiling and packaging RPM via Podman..."
-# Volume Mount Layout:
-# - ${SRC_DIR}/xwayland-satellite: Source tree mounted to /workspace
-# - ${HOST_CACHE_DIR}/satellite-cargo: Hermetic Cargo deps mounted to /workspace/.cargo
-# - ${HOST_CACHE_DIR}/satellite-target: Incremental compilation cache mounted to /workspace/target
-# - ${RPM_OUTPUT_DIR}: Artifact distribution directory mounted to /output
-podman run --rm \
+# ponytail: -it so Ctrl+C forwards SIGINT into the container (no host-side `podman rm -f`)
+podman run -it --rm \
   --userns=keep-id \
-  -e SATELLITE_REF="${SATELLITE_REF}" \
   -e GIT_SHORT="${GIT_SHORT}" \
   -v "${SRC_DIR}/xwayland-satellite:/workspace:z" \
   -v "${HOST_CACHE_DIR}/satellite-cargo:/workspace/.cargo:z" \

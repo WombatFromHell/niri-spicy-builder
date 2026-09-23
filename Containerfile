@@ -39,6 +39,7 @@ WORKDIR /workspace
 # Copy and set the builder entrypoints
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY entrypoint-satellite.sh /usr/local/bin/entrypoint-satellite.sh
+COPY container-lib.sh /usr/local/bin/container-lib.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint-satellite.sh
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
