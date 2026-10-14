@@ -8,7 +8,7 @@ source "${PROJECT_ROOT}/container-lib.sh"
 parse_args "$@"
 
 # ponytail: default to upstream default branch; override to pin a commit/branch
-SATELLITE_REF="${SATELLITE_REF:-add2795134593faafce60e404a0a75df68e9ee0c}"
+SATELLITE_REF="${SATELLITE_REF:-b83eab900644e4c7c77982ce3d44cb490f0c5e1d}" # v0.8.3 pin
 
 # ponytail: --name-only stops before image build/compile — just enough to name the RPM (last stdout line)
 if [ "$NAME_ONLY" = "1" ]; then

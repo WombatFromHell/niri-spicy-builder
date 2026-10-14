@@ -8,8 +8,8 @@ source "${PROJECT_ROOT}/container-lib.sh"
 parse_args "$@"
 
 # ponytail: shallow fetch covers branch tip + pinned commit if on tip; falls back to full fetch for deep history
-NIRI_REF="${NIRI_REF:-641335ff77d31f0d410d589f8a35654fc5fe31a0}"
-SMITHAY_REF="${SMITHAY_REF:-ffaab7cb397f44f3c143dfe4807269abf9c769eb}"
+NIRI_REF="${NIRI_REF:-1bfaa833dce073d53d9db72c2c12a77f452864eb}"       # 10/9/26
+SMITHAY_REF="${SMITHAY_REF:-064e3066ea377ef8c628323031e5eb4632819c97}" # 10/9/26
 
 # ponytail: --name-only stops before image build/compile — just enough to name the RPM (last stdout line)
 if [ "$NAME_ONLY" = "1" ]; then
