@@ -8,13 +8,87 @@ on:
         default: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  # ponytail: nix side is already incremental — cachix substitutes anything unchanged.
+  # Consumers: https://wombatfromhell.cachix.org
+  #            wombatfromhell.cachix.org-1:pyIVJJkoLxkjH/MKK1ylrrdJKPpm+aXLeD2zAqVk9lA=
+  nix:
     runs-on: ubuntu-26.04
+    environment: cachix
     steps:
       - uses: actions/checkout@v7
+
+      - uses: cachix/install-nix-action@v31
+
+      - uses: cachix/cachix-action@v17
+        with:
+          name: wombatfromhell
+          authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+
+      - run: nix build .#niri .#xwayland-satellite --no-link --print-build-logs
+
+  # ponytail: the tag is a hash of everything that defines or is COPY'd into the image, so
+  # "tag exists" == "image matches this commit". Runs in seconds when nothing changed.
+  # To pick up newer Fedora packages, touch a comment in the Containerfile (new hash).
+  image:
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      ref: ${{ steps.ref.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # GHCR requires lowercase; the owner here has capitals
+      - id: ref
+        run: |
+          hash="$(cat Containerfile entrypoint.sh entrypoint-satellite.sh container-lib.sh | sha256sum | cut -c1-12)"
+          echo "ref=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/niri-spicy-builder:${hash}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push if this tag doesn't exist yet
+        env:
+          REF: ${{ steps.ref.outputs.ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          podman login ghcr.io -u "$GITHUB_ACTOR" --password-stdin <<<"$GH_TOKEN"
+          if skopeo inspect "docker://$REF" >/dev/null 2>&1; then
+            echo "==> $REF already exists"
+          else
+            podman build -t "$REF" -f Containerfile .
+            podman push "$REF"
+          fi
+
+  rpm:
+    needs: image
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+      packages: read
+    env:
+      BUILDER_IMAGE: ${{ needs.image.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: podman login ghcr.io -u "$GITHUB_ACTOR" --password-stdin <<<"$GH_TOKEN"
+
+      # ponytail: exact hit on the same pins; otherwise the restore-keys prefix restores the
+      # previous pins' deps, so a bump only recompiles niri/smithay, not every registry crate.
+      # (.builder-cache/src is deliberately not cached — sync_repo re-clones it.)
+      - uses: actions/cache@v6
+        with:
+          path: |
+            .builder-cache/cargo
+            .builder-cache/target
+            .builder-cache/satellite-cargo
+            .builder-cache/satellite-target
+          key: rpm-cargo-${{ hashFiles('pins.json') }}
+          restore-keys: rpm-cargo-
 
       # ponytail: RPM names are version + 7-char git hash + dist/arch — knowable without
       # compiling, and the hash means "name exists" == "artifact exists". niri's predicted

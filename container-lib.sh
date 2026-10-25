@@ -58,9 +58,15 @@ package_rpm() {
 # pre-build may ship, so a stale or drifted RPM can't sneak into a release
 verify_rpm_names() {
   local list="$1" dir="${2:-dist}" f name bad=0
-  [[ -f "$list" ]] || { echo "missing predicted-names file: $list" >&2; return 1; }
+  [[ -f $list ]] || {
+    echo "missing predicted-names file: $list" >&2
+    return 1
+  }
   for f in "$dir"/*.rpm; do
-    [[ -e "$f" ]] || { echo "no RPMs in ${dir}/" >&2; return 1; }
+    [[ -e $f ]] || {
+      echo "no RPMs in ${dir}/" >&2
+      return 1
+    }
     name="${f##*/}"
     if grep -Fxq "$name" "$list"; then
       echo "--> verified ${name}"

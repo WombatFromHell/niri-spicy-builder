@@ -3,7 +3,8 @@
 # shellcheck disable=SC2034 # NAME_ONLY is set here, consumed by the build scripts that source this lib
 # build-lib.sh — shared scaffolding for build-rpm-*.sh (source, don't execute)
 
-IMAGE_NAME="niri-spicy-builder:f44"
+# ponytail: CI sets BUILDER_IMAGE to the prebuilt registry image; locally the Containerfile is built
+IMAGE_NAME="${BUILDER_IMAGE:-niri-spicy-builder:f44}"
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Define dedicated directories for build cache vs output artifacts
@@ -20,18 +21,18 @@ NAME_ONLY=0
 parse_args() {
   while [ $# -gt 0 ]; do
     case "$1" in
-      --clean)
-        echo "==> Cleaning ${HOST_CACHE_DIR} and ${RPM_OUTPUT_DIR}/*.rpm..."
-        rm -rf "${HOST_CACHE_DIR}"
-        rm -f "${RPM_OUTPUT_DIR}"/*.rpm
-        ;;
-      --name-only)
-        NAME_ONLY=1
-        ;;
-      *)
-        echo "usage: $(basename "$0") [--clean] [--name-only]" >&2
-        exit 2
-        ;;
+    --clean)
+      echo "==> Cleaning ${HOST_CACHE_DIR} and ${RPM_OUTPUT_DIR}/*.rpm..."
+      rm -rf "${HOST_CACHE_DIR}"
+      rm -f "${RPM_OUTPUT_DIR}"/*.rpm
+      ;;
+    --name-only)
+      NAME_ONLY=1
+      ;;
+    *)
+      echo "usage: $(basename "$0") [--clean] [--name-only]" >&2
+      exit 2
+      ;;
     esac
     shift
   done
@@ -42,9 +43,17 @@ ensure_dirs() {
 }
 
 ensure_image() {
-  echo "==> Building container image '${IMAGE_NAME}'..."
-  podman build -t "${IMAGE_NAME}" -f Containerfile "${PROJECT_ROOT}"
+  if [ -n "${BUILDER_IMAGE:-}" ]; then
+    echo "==> Pulling builder image '${IMAGE_NAME}'..."
+    podman pull "${IMAGE_NAME}"
+  else
+    echo "==> Building container image '${IMAGE_NAME}'..."
+    podman build -t "${IMAGE_NAME}" -f Containerfile "${PROJECT_ROOT}"
+  fi
 }
+
+# ponytail: pins.json is the single source of truth (flake.nix reads it too)
+pin() { jq -er "$1" "${PROJECT_ROOT}/pins.json"; }
 
 sync_repo() {
   local repo_url="$1"

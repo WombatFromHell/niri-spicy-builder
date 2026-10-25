@@ -1,0 +1,17 @@
+{
+  "niri": {
+    "rev": "1bfaa833dce073d53d9db72c2c12a77f452864eb",
+    "hash": "sha256-ICejOlb0pV71S2rc+TGRLAF8xZIrnbxikrBbRq2DEws=",
+    "cargoHash": "sha256-SDn6PghO/vFlcl8BKuEOvDy17DKZI5pxhsw8b7Ospaw="
+  },
+  "smithay": {
+    "rev": "064e3066ea377ef8c628323031e5eb4632819c97",
+    "hash": "sha256-hteyKrqUZwtMUWhh2h6BMHL9RSK4bLvbSpNgdeiyBCA="
+  },
+  "satellite": {
+    "rev": "b83eab900644e4c7c77982ce3d44cb490f0c5e1d",
+    "version": "0.8.3",
+    "hash": "sha256-eFEjCCniMCKeWU0PcZNv+tDYe08SLFPjRplyPY8OFt4=",
+    "cargoHash": "sha256-gMGFvnbxM3hD5fmkSimaFd87GEf6BXFe/MGjoS6VNVU="
+  }
+}
