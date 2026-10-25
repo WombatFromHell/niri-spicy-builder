@@ -26,8 +26,12 @@ jobs:
         with:
           name: wombatfromhell
           authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+          skipPush: true
 
-      - run: nix build .#niri .#xwayland-satellite --no-link --print-build-logs
+      # `^*` = all outputs (out + doc); cachix push uploads just their runtime closures
+      - run: |
+          nix build '.#niri^*' '.#xwayland-satellite^*' --no-link --print-out-paths --print-build-logs \
+            | cachix push wombatfromhell
 
   # ponytail: the tag is a hash of everything that defines or is COPY'd into the image, so
   # "tag exists" == "image matches this commit". Runs in seconds when nothing changed.
